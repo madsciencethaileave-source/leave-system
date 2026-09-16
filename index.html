@@ -499,44 +499,7 @@
 
 <script>
   const LIFF_ID = '2011365656-ZbSL0AXO';
-  const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxdoowD030YW2f-wYsbcDByKOU4kZ47fA2c3yRzokRJG0Mjzu6jXYWZFfO38YCugxHZ/exec';
-
-
-async function checkAppsScriptHealth(){
-  try{
-    const r = await fetch(WEB_APP_URL + '?api=health', {
-      method:'GET',
-      cache:'no-store'
-    });
-    const text = await r.text();
-    if(!r.ok){
-      return {
-        success:false,
-        httpStatus:r.status,
-        url:WEB_APP_URL,
-        response:text.slice(0,500)
-      };
-    }
-    try{
-      return JSON.parse(text);
-    }catch(e){
-      return {
-        success:false,
-        httpStatus:r.status,
-        url:WEB_APP_URL,
-        response:text.slice(0,500),
-        message:'Endpoint ตอบกลับไม่ใช่ JSON'
-      };
-    }
-  }catch(err){
-    return {
-      success:false,
-      httpStatus:0,
-      url:WEB_APP_URL,
-      response:String(err && err.message ? err.message : err)
-    };
-  }
-}
+  const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycby3o_CDLUCmMU0C0Vf8Q1whF98a4Jjc4u3BTiWqN1kgU2u5_lgtUO1hWxL2ivP6K9IW/exec';
 
   let idToken = null;
   let liffReady = false;
@@ -651,29 +614,11 @@ async function checkAppsScriptHealth(){
       body: JSON.stringify(payload)
     });
 
-    const responseText = await response.text();
-
     if (!response.ok) {
-      const action = payload && payload.action ? payload.action : '';
-      throw new Error(
-        'Apps Script API error: HTTP ' + response.status +
-        '\nAction: ' + action +
-        '\nURL: ' + WEB_APP_URL +
-        '\nResponse: ' + responseText.slice(0, 500)
-      );
+      throw new Error('Apps Script API error: HTTP ' + response.status);
     }
 
-    try {
-      return JSON.parse(responseText);
-    } catch (parseErr) {
-      const action = payload && payload.action ? payload.action : '';
-      throw new Error(
-        'Apps Script ตอบกลับไม่ใช่ JSON' +
-        '\nAction: ' + action +
-        '\nURL: ' + WEB_APP_URL +
-        '\nResponse: ' + responseText.slice(0, 500)
-      );
-    }
+    return response.json();
   }
   /***********************************************
    * ตรวจสอบสถานะผู้ใช้ -> เลือกว่าจะโชว์หน้าจอไหน
