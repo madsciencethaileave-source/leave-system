@@ -453,9 +453,11 @@
       <p id="leavePeriodHint" class="hint">เลือกเต็มวัน หรือเลือกครึ่งวันเช้า/บ่ายได้</p>
 
       <div id="certificateBox" class="certificate-box">
-        <label for="medicalCertificate">ใบรับรองแพทย์ <span class="certificate-required">*</span></label>
+        <label for="medicalCertificate">
+          ใบรับรองแพทย์ <span id="certificateRequiredMark" class="certificate-required">*</span>
+        </label>
         <input type="file" id="medicalCertificate" accept="application/pdf,image/jpeg,image/png,image/webp,image/heic,image/heif">
-        <p class="hint">สำหรับลาป่วยเท่านั้น รองรับ PDF, JPG, PNG, WEBP, HEIC, HEIF ขนาดไม่เกิน 8 MB</p>
+        <p id="certificateHint" class="hint">ลาป่วยตั้งแต่ 3 วันขึ้นไป ต้องแนบใบรับรองแพทย์ รองรับ PDF, JPG, PNG, WEBP, HEIC, HEIF ขนาดไม่เกิน 8 MB</p>
       </div>
 
       <label>เหตุผล</label>
@@ -499,7 +501,7 @@
 
 <script>
   const LIFF_ID = '2011365656-ZbSL0AXO';
-  const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzXJmkWE4--9DQ2wtyPUdJtGKW6ORwCVbwDWAy9xqQn91AQt3M5CT5JI0jnHeCqrTjt/exec';
+  const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxgHTBBFrvOxzZCTKWZiWHvGnKdSPumZCWQ8zK7fhy0cBDOafOCXuycQ30wlVnxg1hT/exec';
 
   let idToken = null;
   let liffReady = false;
@@ -1076,6 +1078,11 @@
 
   document.getElementById('startDate').addEventListener('change', function() {
     syncHalfDayDates();
+    updateMedicalCertificateVisibility();
+  });
+
+  document.getElementById('endDate').addEventListener('change', function() {
+    updateMedicalCertificateVisibility();
   });
 
   document.getElementById('rejectForm').addEventListener('submit', function(e) {
@@ -1161,16 +1168,6 @@
       return;
     }
 
-    if (leaveType === 'SICK') {
-      if (!medicalCertificateFile) {
-        showMessageIn('message', 'กรุณาแนบใบรับรองแพทย์สำหรับการลาป่วย', false);
-        return;
-      }
-      if (!validateMedicalCertificateFile()) {
-        return;
-      }
-    }
-
     if (!startDate) {
       showMessageIn('message', 'กรุณาเลือกวันที่เริ่มลา', false);
       return;
@@ -1193,6 +1190,28 @@
         false
       );
       return;
+    }
+
+    // ลาป่วยตั้งแต่ 3 วันขึ้นไปเท่านั้นที่ต้องแนบใบรับรองแพทย์
+    if (leaveType === 'SICK' && requestedDays >= 3) {
+      if (!medicalCertificateFile) {
+        showMessageIn(
+          'message',
+          'ลาป่วยตั้งแต่ 3 วันขึ้นไป กรุณาแนบใบรับรองแพทย์',
+          false
+        );
+        return;
+      }
+
+      if (!validateMedicalCertificateFile()) {
+        return;
+      }
+    } else if (medicalCertificateFile) {
+      // ถ้าลาป่วยน้อยกว่า 3 วัน ไม่บังคับแนบไฟล์
+      // แต่ถ้าผู้ใช้เลือกแนบไฟล์เอง ให้ตรวจสอบไฟล์ตามปกติ
+      if (!validateMedicalCertificateFile()) {
+        return;
+      }
     }
 
     const balance = findLeaveBalance(leaveType);
@@ -1226,7 +1245,7 @@
       let medicalCertificateName = '';
       let medicalCertificateMimeType = '';
 
-      if (leaveType === 'SICK' && medicalCertificateFile) {
+      if (leaveType === 'SICK' && requestedDays >= 3 && medicalCertificateFile) {
         medicalCertificateBase64 = await readFileAsBase64(medicalCertificateFile);
         medicalCertificateName = medicalCertificateFile.name;
         medicalCertificateMimeType = medicalCertificateFile.type;
@@ -1311,6 +1330,8 @@
       endDate.disabled = true;
       syncHalfDayDates();
     }
+
+    updateMedicalCertificateVisibility();
   }
 
   function syncHalfDayDates() {
@@ -1328,16 +1349,50 @@
 
   function updateMedicalCertificateVisibility() {
     const leaveType = document.getElementById('leaveType').value;
+    const startDate = document.getElementById('startDate').value;
+    const endDate = document.getElementById('endDate').value;
+
     const box = document.getElementById('certificateBox');
     const input = document.getElementById('medicalCertificate');
+    const requiredMark = document.getElementById('certificateRequiredMark');
+    const hint = document.getElementById('certificateHint');
+
+    if (!box || !input) return;
+
+    let requestedDays = 0;
+
+    if (leaveType === 'SICK' && startDate && endDate) {
+      if (leavePeriod === 'FULL') {
+        requestedDays = calculateLeaveDays(startDate, endDate);
+      } else if (startDate === endDate) {
+        requestedDays = 0.5;
+      }
+    }
+
+    const certificateRequired =
+      leaveType === 'SICK' && requestedDays >= 3;
 
     if (leaveType === 'SICK') {
       box.style.display = 'block';
-      input.required = true;
+      input.required = certificateRequired;
+
+      if (requiredMark) {
+        requiredMark.style.display = certificateRequired ? 'inline' : 'none';
+      }
+
+      if (hint) {
+        hint.textContent = certificateRequired
+          ? 'ลาป่วยตั้งแต่ 3 วันขึ้นไป ต้องแนบใบรับรองแพทย์ รองรับ PDF, JPG, PNG, WEBP, HEIC, HEIF ขนาดไม่เกิน 8 MB'
+          : 'ลาป่วยน้อยกว่า 3 วัน ไม่ต้องแนบใบรับรองแพทย์ หากมีสามารถแนบได้ รองรับ PDF, JPG, PNG, WEBP, HEIC, HEIF ขนาดไม่เกิน 8 MB';
+      }
     } else {
       box.style.display = 'none';
       input.required = false;
       input.value = '';
+
+      if (requiredMark) {
+        requiredMark.style.display = 'none';
+      }
     }
   }
 
